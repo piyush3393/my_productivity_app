@@ -43,7 +43,7 @@ const navigationGroups = [
       },
       {
         label: "Notes",
-        href: "#",
+        href: "/notes",
         icon: StickyNote,
         color: "text-amber-500",
       },

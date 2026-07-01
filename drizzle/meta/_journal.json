@@ -8,6 +8,13 @@
       "when": 1782876233014,
       "tag": "0000_fair_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782885023364,
+      "tag": "0001_salty_jocasta",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -94,6 +95,30 @@ export const kanbanTaskLabels = pgTable("kanban_task_labels", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const kanbanBoardCollaborators = pgTable(
+  "kanban_board_collaborators",
+  {
+    id: serial("id").primaryKey(),
+    boardId: integer("board_id")
+      .notNull()
+      .references(() => kanbanBoards.id),
+    userId: integer("user_id").references(() => users.id),
+    email: text("email").notNull(),
+    status: text("status").notNull().default("pending"),
+    invitedByUserId: integer("invited_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("kanban_board_collaborators_board_email_unique").on(
+      table.boardId,
+      table.email
+    ),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type CalendarItem = typeof calendarItems.$inferSelect;
@@ -106,3 +131,5 @@ export type KanbanTask = typeof kanbanTasks.$inferSelect;
 export type NewKanbanTask = typeof kanbanTasks.$inferInsert;
 export type KanbanTaskLabel = typeof kanbanTaskLabels.$inferSelect;
 export type NewKanbanTaskLabel = typeof kanbanTaskLabels.$inferInsert;
+export type KanbanBoardCollaborator = typeof kanbanBoardCollaborators.$inferSelect;
+export type NewKanbanBoardCollaborator = typeof kanbanBoardCollaborators.$inferInsert;

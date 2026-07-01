@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -119,6 +120,24 @@ export const kanbanBoardCollaborators = pgTable(
   ]
 );
 
+export const notes = pgTable("notes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  title: text("title").notNull(),
+  contentJson: jsonb("content_json").notNull(),
+  contentText: text("content_text").notNull().default(""),
+  color: text("color").notNull().default("amber"),
+  icon: text("icon").notNull().default("StickyNote"),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  isTrashed: boolean("is_trashed").notNull().default(false),
+  trashedAt: timestamp("trashed_at"),
+  wordCount: integer("word_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type CalendarItem = typeof calendarItems.$inferSelect;
@@ -133,3 +152,5 @@ export type KanbanTaskLabel = typeof kanbanTaskLabels.$inferSelect;
 export type NewKanbanTaskLabel = typeof kanbanTaskLabels.$inferInsert;
 export type KanbanBoardCollaborator = typeof kanbanBoardCollaborators.$inferSelect;
 export type NewKanbanBoardCollaborator = typeof kanbanBoardCollaborators.$inferInsert;
+export type Note = typeof notes.$inferSelect;
+export type NewNote = typeof notes.$inferInsert;

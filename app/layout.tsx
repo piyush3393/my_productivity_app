@@ -3,8 +3,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Next.js Premium Startup Boilerplate",
-  description: "Created using the ultimate interactive Next.js stack generator CLI.",
+  title: "Canvasly",
+  description: "A cozy productivity workspace for notes, tasks, boards, and AI-assisted planning.",
 };
 
 export default function RootLayout({

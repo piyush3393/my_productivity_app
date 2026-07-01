@@ -8,15 +8,29 @@ import {
   FileText,
   GripVertical,
   Link2,
-  MoreHorizontal,
+  Loader2,
+  MessageCircle,
   NotebookPen,
   Pencil,
   Plus,
+  Share2,
   Trash2,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
+import {
+  ClientSideSuspense,
+  LiveblocksProvider,
+  RoomProvider,
+  useOthers,
+  useSelf,
+  useThreads,
+  useUpdateMyPresence,
+} from "@liveblocks/react";
+import { Composer, Thread } from "@liveblocks/react-ui";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
   createBoard,
@@ -24,7 +38,9 @@ import {
   createTask,
   deleteColumn,
   deleteTask,
+  inviteBoardCollaborator,
   moveTask,
+  removeBoardCollaborator,
   updateColumn,
   updateTask,
 } from "@/app/kanban/actions";
@@ -39,6 +55,23 @@ import { cn } from "@/lib/utils";
 
 type TaskWithLabels = KanbanTask & {
   labels: KanbanTaskLabel[];
+};
+
+type BoardAccess = {
+  boardId: number;
+  isOwner: boolean;
+};
+
+type BoardMember = {
+  id: string;
+  collaboratorId?: number;
+  boardId: number;
+  userId: number | null;
+  name: string | null;
+  email: string;
+  imageUrl: string | null;
+  status: string;
+  role: string;
 };
 
 type TaskDialogState =
@@ -112,6 +145,39 @@ function todayKey() {
   return `${year}-${month}-${day}`;
 }
 
+function getInitials(nameOrEmail: string) {
+  const source = nameOrEmail.trim();
+  const nameParts = source
+    .replace(/@.*/, "")
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  const initials = nameParts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return initials || "U";
+}
+
+function getAvatarColor(seed: string) {
+  const colors = [
+    "bg-primary text-primary-foreground",
+    "bg-sky-500 text-white",
+    "bg-coral-500 text-white",
+    "bg-amber-500 text-white",
+    "bg-violet-500 text-white",
+    "bg-teal-500 text-white",
+    "bg-rose-500 text-white",
+  ];
+  const total = seed.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+  return colors[total % colors.length];
+}
+
+function countThreadComments(thread: { comments?: { body?: unknown }[] }) {
+  return thread.comments?.filter((comment) => Boolean(comment.body)).length ?? 0;
+}
+
 function getBoardColor(color: string) {
   return boardColorStyles[color as keyof typeof boardColorStyles] ?? "bg-primary";
 }
@@ -132,6 +198,222 @@ function getPriorityStyle(priority: string) {
 
 function getLabelStyle(color: string) {
   return labelStyles[color as keyof typeof labelStyles] ?? labelStyles.teal;
+}
+
+function AvatarCircle({
+  name,
+  email,
+  imageUrl,
+  active = false,
+  className,
+}: {
+  name?: string | null;
+  email: string;
+  imageUrl?: string | null;
+  active?: boolean;
+  className?: string;
+}) {
+  const label = name || email;
+
+  return (
+    <span
+      className={cn(
+        "relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-card text-[0.68rem] font-bold shadow-sm",
+        !imageUrl && getAvatarColor(email),
+        active && "ring-2 ring-primary/40",
+        className
+      )}
+      title={label}
+    >
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt="" className="h-full w-full object-cover" src={imageUrl} />
+      ) : (
+        getInitials(label)
+      )}
+      {active && (
+        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-card bg-emerald-400" />
+      )}
+    </span>
+  );
+}
+
+function ActiveCollaborators() {
+  const self = useSelf();
+  const others = useOthers();
+  const activeUsers = [
+    ...(self
+      ? [
+          {
+            id: self.id,
+            info: self.info,
+          },
+        ]
+      : []),
+    ...others.map((other) => ({
+      id: other.id,
+      info: other.info,
+    })),
+  ];
+
+  if (activeUsers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-2">
+        {activeUsers.slice(0, 5).map((user) => (
+          <AvatarCircle
+            key={user.id}
+            active
+            className="h-9 w-9"
+            email={user.info.email}
+            imageUrl={user.info.avatar}
+            name={user.info.name}
+          />
+        ))}
+      </div>
+      <span className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+        {activeUsers.length} active
+      </span>
+    </div>
+  );
+}
+
+function CollaborationPanel({
+  board,
+  members,
+  isOwner,
+  onClose,
+}: {
+  board: KanbanBoard;
+  members: BoardMember[];
+  isOwner: boolean;
+  onClose: () => void;
+}) {
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function invite(formData: FormData) {
+    formData.set("boardId", String(board.id));
+    setMessage("");
+    startTransition(async () => {
+      try {
+        await inviteBoardCollaborator(formData);
+        setMessage("Invite saved.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Invite failed.");
+      }
+    });
+  }
+
+  function removeMember(collaboratorId: number) {
+    const formData = new FormData();
+    formData.set("boardId", String(board.id));
+    formData.set("collaboratorId", String(collaboratorId));
+    startTransition(async () => {
+      await removeBoardCollaborator(formData);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-foreground/30 p-3 backdrop-blur-sm">
+      <aside className="flex h-full w-full max-w-md flex-col rounded-lg border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Users className="h-4 w-4" />
+              Collaboration
+            </div>
+            <p className="mt-1 truncate text-sm text-muted-foreground">{board.name}</p>
+          </div>
+          <Button className="h-8 w-8 rounded-lg" size="icon" variant="ghost" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {isOwner ? (
+            <form action={invite} className="rounded-lg border border-border bg-secondary/35 p-3">
+              <label className="block text-sm font-medium">
+                Invite by email
+                <div className="mt-2 flex gap-2">
+                  <input
+                    className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    name="email"
+                    placeholder="teammate@example.com"
+                    type="email"
+                    required
+                  />
+                  <Button className="h-10 rounded-lg px-3" disabled={isPending} type="submit">
+                    <UserPlus className="mr-1.5 h-4 w-4" />
+                    Invite
+                  </Button>
+                </div>
+              </label>
+              {message && <p className="mt-2 text-xs text-muted-foreground">{message}</p>}
+            </form>
+          ) : (
+            <div className="rounded-lg border border-border bg-secondary/35 p-3 text-sm text-muted-foreground">
+              You can view collaborators for this shared board.
+            </div>
+          )}
+
+          <div className="mt-4 space-y-2">
+            {members.length > 0 ? (
+              members.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-background p-3"
+                >
+                  <AvatarCircle
+                    email={member.email}
+                    imageUrl={member.imageUrl}
+                    name={member.name}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {member.name || member.email}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold capitalize",
+                      member.role === "owner"
+                        ? "border-primary/20 bg-primary/10 text-primary"
+                        : member.status === "active"
+                          ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                          : "border-amber-200 bg-amber-100 text-amber-700"
+                    )}
+                  >
+                    {member.role === "owner" ? "Owner" : member.status}
+                  </span>
+                  {isOwner && member.collaboratorId && (
+                    <Button
+                      className="h-8 w-8 rounded-lg"
+                      disabled={isPending}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removeMember(member.collaboratorId!)}
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-500" />
+                    </Button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed border-border bg-secondary/35 p-5 text-center text-sm text-muted-foreground">
+                No collaborators yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
 function BoardDialog({
@@ -507,12 +789,92 @@ function TaskDialog({
   );
 }
 
+function TaskCommentsPanel({
+  boardId,
+  task,
+  onClose,
+}: {
+  boardId: number;
+  task: TaskWithLabels;
+  onClose: () => void;
+}) {
+  const { threads, isLoading } = useThreads({
+    query: {
+      metadata: {
+        boardId,
+        taskId: task.id,
+        kind: "kanban-task",
+      },
+    },
+  });
+  const taskThreads = threads ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-foreground/30 p-3 backdrop-blur-sm">
+      <aside className="flex h-full w-full max-w-xl flex-col rounded-lg border border-border bg-card shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <MessageCircle className="h-4 w-4" />
+              Task discussion
+            </div>
+            <h2 className="mt-1 truncate text-lg font-semibold">{task.title}</h2>
+          </div>
+          <Button className="h-8 w-8 rounded-lg" size="icon" variant="ghost" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading comments...
+            </div>
+          ) : taskThreads.length > 0 ? (
+            <div className="space-y-3">
+              {taskThreads.map((thread) => (
+                <Thread
+                  key={thread.id}
+                  className="rounded-lg border border-border bg-background p-2"
+                  showResolveAction={false}
+                  thread={thread}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border bg-secondary/35 p-5 text-center">
+              <p className="text-sm font-semibold">No comments yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Start a focused thread for this task.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {!isLoading && taskThreads.length === 0 && (
+          <div className="border-t border-border p-4">
+            <Composer
+              className="rounded-lg border border-border bg-background p-2"
+              metadata={{ boardId, taskId: task.id, kind: "kanban-task" }}
+            />
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
 function TaskCard({
   task,
   onEdit,
+  onComments,
+  commentCount,
 }: {
   task: TaskWithLabels;
   onEdit: (task: TaskWithLabels) => void;
+  onComments: (task: TaskWithLabels) => void;
+  commentCount: number;
 }) {
   return (
     <button
@@ -567,17 +929,30 @@ function TaskCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2 text-muted-foreground">
-        {task.calendarSynced && (
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-sky-100 text-sky-600" title="Synced with Calendar">
-            <CalendarCheck className="h-3.5 w-3.5" />
-          </span>
-        )}
-        {task.notesLinked && (
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 text-amber-600" title="Linked with Notes">
-            <Link2 className="h-3.5 w-3.5" />
-          </span>
-        )}
+      <div className="mt-3 flex items-center justify-between gap-2 text-muted-foreground">
+        <div className="flex items-center gap-2">
+          {task.calendarSynced && (
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-sky-100 text-sky-600" title="Synced with Calendar">
+              <CalendarCheck className="h-3.5 w-3.5" />
+            </span>
+          )}
+          {task.notesLinked && (
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-amber-100 text-amber-600" title="Linked with Notes">
+              <Link2 className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+        <span
+          className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2 text-xs font-semibold text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+          title="Comments"
+          onClick={(event) => {
+            event.stopPropagation();
+            onComments(task);
+          }}
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+          {commentCount}
+        </span>
       </div>
     </button>
   );
@@ -587,13 +962,17 @@ function KanbanColumnView({
   boardId,
   column,
   tasks,
+  commentCounts,
   onAddTask,
+  onCommentTask,
   onEditTask,
 }: {
   boardId: number;
   column: KanbanColumn;
   tasks: TaskWithLabels[];
+  commentCounts: Record<number, number>;
   onAddTask: (columnId: number) => void;
+  onCommentTask: (task: TaskWithLabels) => void;
   onEditTask: (task: TaskWithLabels) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -686,7 +1065,13 @@ function KanbanColumnView({
       <div className="mt-3 flex flex-1 flex-col gap-2 overflow-y-auto pr-1">
         {tasks.length > 0 ? (
           tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={onEditTask} />
+            <TaskCard
+              key={task.id}
+              commentCount={commentCounts[task.id] ?? 0}
+              task={task}
+              onComments={onCommentTask}
+              onEdit={onEditTask}
+            />
           ))
         ) : (
           <button
@@ -702,18 +1087,150 @@ function KanbanColumnView({
   );
 }
 
+function ActiveBoardRoom({
+  activeBoard,
+  activeColumns,
+  boardMembers,
+  isOwner,
+  tasksByColumn,
+  onAddColumn,
+  onAddTask,
+  onEditTask,
+}: {
+  activeBoard: KanbanBoard;
+  activeColumns: KanbanColumn[];
+  boardMembers: BoardMember[];
+  isOwner: boolean;
+  tasksByColumn: Record<number, TaskWithLabels[]>;
+  onAddColumn: () => void;
+  onAddTask: (columnId: number) => void;
+  onEditTask: (task: TaskWithLabels) => void;
+}) {
+  const [collaborationOpen, setCollaborationOpen] = useState(false);
+  const [commentsTask, setCommentsTask] = useState<TaskWithLabels | null>(null);
+  const updateMyPresence = useUpdateMyPresence();
+  const { threads } = useThreads({
+    query: {
+      metadata: {
+        boardId: activeBoard.id,
+        kind: "kanban-task",
+      },
+    },
+  });
+  const commentCounts = useMemo(() => {
+    return (threads ?? []).reduce<Record<number, number>>((counts, thread) => {
+      const taskId = Number(thread.metadata.taskId);
+      counts[taskId] = (counts[taskId] ?? 0) + countThreadComments(thread);
+
+      return counts;
+    }, {});
+  }, [threads]);
+
+  useEffect(() => {
+    updateMyPresence({
+      boardId: activeBoard.id,
+      taskId: commentsTask?.id ?? null,
+      activity: commentsTask ? `Commenting on ${commentsTask.title}` : "Viewing board",
+    });
+  }, [activeBoard.id, commentsTask, updateMyPresence]);
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("h-3 w-3 rounded-full", getBoardColor(activeBoard.color))} />
+            <p className="text-sm font-semibold text-primary">Kanban board</p>
+          </div>
+          <h2 className="mt-1 truncate text-2xl font-semibold tracking-normal">
+            {activeBoard.name}
+          </h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ActiveCollaborators />
+          <Button
+            className="h-9 rounded-lg px-3 text-xs"
+            type="button"
+            variant="outline"
+            onClick={() => setCollaborationOpen(true)}
+          >
+            <Share2 className="mr-1.5 h-3.5 w-3.5 text-sky-500" />
+            Collaboration
+          </Button>
+          <span className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground">
+            {activeColumns.length}/5 columns
+          </span>
+          <Button
+            className="h-9 rounded-lg px-3 text-xs"
+            disabled={activeColumns.length >= 5}
+            type="button"
+            variant="outline"
+            onClick={onAddColumn}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5 text-teal-500" />
+            Add column
+          </Button>
+        </div>
+      </div>
+
+      {activeColumns.length >= 5 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-100 px-3 py-2 text-sm text-amber-800">
+          This board has the maximum of five columns.
+        </div>
+      )}
+
+      <div className="mt-4 overflow-x-auto pb-2">
+        <div className="flex min-w-max gap-3">
+          {activeColumns.map((column) => (
+            <KanbanColumnView
+              key={column.id}
+              boardId={activeBoard.id}
+              column={column}
+              commentCounts={commentCounts}
+              tasks={tasksByColumn[column.id] ?? []}
+              onAddTask={onAddTask}
+              onCommentTask={setCommentsTask}
+              onEditTask={onEditTask}
+            />
+          ))}
+        </div>
+      </div>
+
+      {collaborationOpen && (
+        <CollaborationPanel
+          board={activeBoard}
+          isOwner={isOwner}
+          members={boardMembers}
+          onClose={() => setCollaborationOpen(false)}
+        />
+      )}
+      {commentsTask && (
+        <TaskCommentsPanel
+          boardId={activeBoard.id}
+          task={commentsTask}
+          onClose={() => setCommentsTask(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export function KanbanClient({
   boards,
   columns,
   tasks,
   labels,
   activeBoardId,
+  boardAccess,
+  boardMembers,
 }: {
   boards: KanbanBoard[];
   columns: KanbanColumn[];
   tasks: KanbanTask[];
   labels: KanbanTaskLabel[];
   activeBoardId: number | null;
+  boardAccess: BoardAccess[];
+  boardMembers: BoardMember[];
 }) {
   const router = useRouter();
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
@@ -721,6 +1238,11 @@ export function KanbanClient({
   const [taskDialog, setTaskDialog] = useState<TaskDialogState | null>(null);
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? null;
   const activeColumns = columns.filter((column) => column.boardId === activeBoardId);
+  const isActiveBoardOwner =
+    boardAccess.find((access) => access.boardId === activeBoardId)?.isOwner ?? false;
+  const activeBoardMembers = boardMembers.filter(
+    (member) => member.boardId === activeBoardId
+  );
 
   const tasksWithLabels = useMemo(() => {
     return tasks.map((task) => ({
@@ -772,6 +1294,11 @@ export function KanbanClient({
               >
                 <span className={cn("h-3 w-3 shrink-0 rounded-full", getBoardColor(board.color))} />
                 <span className="min-w-0 flex-1 truncate font-medium">{board.name}</span>
+                {boardAccess.find((access) => access.boardId === board.id)?.isOwner === false && (
+                  <span className="rounded-full bg-accent px-2 py-0.5 text-[0.65rem] font-semibold text-accent-foreground">
+                    Shared
+                  </span>
+                )}
                 {board.id === activeBoardId && <Check className="h-4 w-4 shrink-0" />}
               </button>
             ))
@@ -795,48 +1322,31 @@ export function KanbanClient({
 
       <section className="min-w-0 rounded-lg border border-border bg-card p-4 shadow-sm">
         {activeBoard ? (
-          <>
-            <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={cn("h-3 w-3 rounded-full", getBoardColor(activeBoard.color))} />
-                  <p className="text-sm font-semibold text-primary">Kanban board</p>
-                </div>
-                <h2 className="mt-1 truncate text-2xl font-semibold tracking-normal">
-                  {activeBoard.name}
-                </h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground">
-                  {activeColumns.length}/5 columns
-                </span>
-                <Button
-                  className="h-9 rounded-lg px-3 text-xs"
-                  disabled={activeColumns.length >= 5}
-                  type="button"
-                  variant="outline"
-                  onClick={() => setColumnDialogOpen(true)}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5 text-teal-500" />
-                  Add column
-                </Button>
-              </div>
-            </div>
-
-            {activeColumns.length >= 5 && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-100 px-3 py-2 text-sm text-amber-800">
-                This board has the maximum of five columns.
-              </div>
-            )}
-
-            <div className="mt-4 overflow-x-auto pb-2">
-              <div className="flex min-w-max gap-3">
-                {activeColumns.map((column) => (
-                  <KanbanColumnView
-                    key={column.id}
-                    boardId={activeBoard.id}
-                    column={column}
-                    tasks={tasksByColumn[column.id] ?? []}
+          <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+            <RoomProvider
+              id={`kanban-board:${activeBoard.id}`}
+              initialPresence={{
+                boardId: activeBoard.id,
+                taskId: null,
+                activity: "Viewing board",
+              }}
+            >
+              <ClientSideSuspense
+                fallback={
+                  <div className="flex min-h-[520px] items-center justify-center text-sm text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Opening collaboration room...
+                  </div>
+                }
+              >
+                {() => (
+                  <ActiveBoardRoom
+                    activeBoard={activeBoard}
+                    activeColumns={activeColumns}
+                    boardMembers={activeBoardMembers}
+                    isOwner={isActiveBoardOwner}
+                    tasksByColumn={tasksByColumn}
+                    onAddColumn={() => setColumnDialogOpen(true)}
                     onAddTask={(columnId) =>
                       setTaskDialog({
                         mode: "create",
@@ -846,10 +1356,10 @@ export function KanbanClient({
                     }
                     onEditTask={(task) => setTaskDialog({ mode: "edit", task })}
                   />
-                ))}
-              </div>
-            </div>
-          </>
+                )}
+              </ClientSideSuspense>
+            </RoomProvider>
+          </LiveblocksProvider>
         ) : (
           <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-dashed border-border bg-secondary/35 p-6 text-center">
             <div className="max-w-sm">

@@ -1,169 +1,405 @@
-import React from 'react';
+"use client";
+
+import {
+  Bot,
+  CalendarDays,
+  CircleHelp,
+  ClipboardList,
+  Clock3,
+  Columns3,
+  FileText,
+  LayoutDashboard,
+  Leaf,
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Settings,
+  Sparkles,
+  StickyNote,
+  WandSparkles,
+} from "lucide-react";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const navigationGroups = [
+  {
+    label: "Workspace",
+    items: [
+      {
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        color: "text-sky-500",
+        active: true,
+      },
+      {
+        label: "Pages / Spaces",
+        icon: Columns3,
+        color: "text-violet-500",
+      },
+      {
+        label: "Notes",
+        icon: StickyNote,
+        color: "text-amber-500",
+      },
+    ],
+  },
+  {
+    label: "Create",
+    items: [
+      {
+        label: "Whiteboard",
+        icon: ClipboardList,
+        color: "text-emerald-500",
+      },
+      {
+        label: "AI Template Builder",
+        icon: WandSparkles,
+        color: "text-fuchsia-500",
+      },
+    ],
+  },
+  {
+    label: "Plan",
+    items: [
+      {
+        label: "Calendar",
+        icon: CalendarDays,
+        color: "text-coral-500",
+      },
+      {
+        label: "Task / Kanban",
+        icon: FileText,
+        color: "text-teal-500",
+      },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      {
+        label: "AI Assistant",
+        icon: Bot,
+        color: "text-indigo-500",
+      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      {
+        label: "Settings",
+        icon: Settings,
+        color: "text-slate-500",
+      },
+    ],
+  },
+];
+
+const focusCards = [
+  {
+    title: "Today",
+    value: "7",
+    detail: "tasks ready",
+    icon: Clock3,
+    tone: "bg-sky-100 text-sky-600",
+  },
+  {
+    title: "Ideas",
+    value: "18",
+    detail: "notes captured",
+    icon: StickyNote,
+    tone: "bg-amber-100 text-amber-600",
+  },
+  {
+    title: "Boards",
+    value: "4",
+    detail: "active spaces",
+    icon: Columns3,
+    tone: "bg-emerald-100 text-emerald-600",
+  },
+];
+
+const taskList = [
+  "Outline launch planning board",
+  "Review weekly notes summary",
+  "Draft AI template prompt set",
+];
 
 export default function Home() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   return (
-    <main style={styles.container}>
-      <div style={styles.hero}>
-        <div style={styles.badge}>Next.js Boilerplate CLI 🚀</div>
-        <h1 style={styles.title}>
-          Your Premium SaaS Stack <span style={styles.gradient}>Is Ready</span>
-        </h1>
-        <p style={styles.subtitle}>
-          Congratulations! Your customized Next.js boilerplate has been successfully scaffolded with all your selected databases, components, and authentication configurations.
-        </p>
-        
-        <div style={styles.ctaGroup}>
-          <a href="https://nextjs.org/docs" target="_blank" rel="noopener noreferrer" style={styles.primaryCta}>
-            Read Next.js Docs
-          </a>
-          <a href="#features" style={styles.secondaryCta}>
-            Explore Stack Files
-          </a>
-        </div>
-      </div>
-
-      <section id="features" style={styles.grid}>
-        <div style={styles.card}>
-          <div style={styles.icon}>⚡</div>
-          <h3 style={styles.cardTitle}>App Router Ready</h3>
-          <p style={styles.cardText}>Built using modern Next.js 15 App Router with full Server Components and safe SEO presets.</p>
-        </div>
-        
-        <div style={styles.card}>
-          <div style={styles.icon}>🔒</div>
-          <h3 style={styles.cardTitle}>Modular Auth</h3>
-          <p style={styles.cardText}>Pre-configured middleware rules and pages for secure, lightning-fast session validation.</p>
-        </div>
-
-        <div style={styles.card}>
-          <div style={styles.icon}>🗄️</div>
-          <h3 style={styles.cardTitle}>Database Integration</h3>
-          <p style={styles.cardText}>Configured connections, client instances, schemas, and live migration configurations.</p>
-        </div>
-      </section>
-
-      <footer style={styles.footer}>
-        Created with <span style={{ color: '#ec4899' }}>♥</span> by{' '}
-        <a
-          href="https://www.youtube.com/@tubeguruji"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: '#71717a', textDecoration: 'underline', transition: 'color 0.2s' }}
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="flex min-h-screen overflow-hidden">
+        <aside
+          className={cn(
+            "flex min-h-screen shrink-0 flex-col border-r border-border bg-sidebar px-3 py-4 shadow-[8px_0_30px_rgba(63,79,68,0.06)] transition-all duration-300",
+            isCollapsed ? "w-[76px]" : "w-[248px]"
+          )}
         >
-          Tubeguruji
-        </a>
-      </footer>
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+                <Leaf className="h-5 w-5" />
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-5">
+                    Canvasly
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Focus workspace
+                  </p>
+                </div>
+              )}
+            </div>
+            {!isCollapsed && (
+              <Button
+                aria-label="Collapse sidebar"
+                className="h-8 w-8 shrink-0 rounded-lg"
+                size="icon"
+                variant="ghost"
+                onClick={() => setIsCollapsed(true)}
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {isCollapsed && (
+            <Button
+              aria-label="Expand sidebar"
+              className="mt-4 h-8 w-full rounded-lg"
+              size="icon"
+              variant="ghost"
+              onClick={() => setIsCollapsed(false)}
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          )}
+
+          <nav className="mt-6 flex flex-1 flex-col gap-4 overflow-y-auto">
+            {navigationGroups.map((group) => (
+              <section
+                key={group.label}
+                aria-labelledby={`sidebar-group-${group.label
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}`}
+                className={cn(
+                  "rounded-lg transition-colors",
+                  isCollapsed
+                    ? "border-t border-border/70 pt-3 first:border-t-0 first:pt-0"
+                    : "border border-border/70 bg-sidebar-accent/35 p-1.5"
+                )}
+                title={isCollapsed ? group.label : undefined}
+              >
+                <p
+                  id={`sidebar-group-${group.label
+                    .toLowerCase()
+                    .replace(/\s+/g, "-")}`}
+                  className={cn(
+                    "px-2 pb-1 text-[0.65rem] font-semibold uppercase text-muted-foreground",
+                    isCollapsed && "sr-only"
+                  )}
+                >
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+
+                    return (
+                      <button
+                        key={item.label}
+                        className={cn(
+                          "group flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
+                          item.active &&
+                            "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_rgba(26,151,132,0.18)]",
+                          isCollapsed && "justify-center px-0"
+                        )}
+                        title={isCollapsed ? item.label : undefined}
+                        type="button"
+                      >
+                        <Icon
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0 transition-transform group-hover:scale-105",
+                            item.color
+                          )}
+                        />
+                        {!isCollapsed && (
+                          <span className="min-w-0 truncate">
+                            {item.label}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </nav>
+
+          <div
+            className={cn(
+              "mt-4 rounded-lg border border-border bg-background/70 p-2",
+              isCollapsed && "flex justify-center border-transparent bg-transparent p-0"
+            )}
+          >
+            {isCollapsed ? (
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-mint-100 text-mint-700"
+                title="Personal workspace"
+              >
+                <Sparkles className="h-4 w-4" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-mint-100 text-mint-700">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold">
+                    Personal workspace
+                  </p>
+                  <p className="truncate text-[0.7rem] text-muted-foreground">
+                    Synced and calm
+                  </p>
+                </div>
+                <CircleHelp className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="flex min-w-0 flex-1 flex-col">
+          <header className="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-background/80 px-5 backdrop-blur">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase text-muted-foreground">
+                Dashboard
+              </p>
+              <h1 className="truncate text-xl font-semibold">
+                Good morning, let&apos;s shape the day.
+              </h1>
+            </div>
+            <div className="hidden min-w-[220px] items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground sm:flex">
+              <Search className="h-4 w-4 text-sky-500" />
+              <span className="truncate">Search notes, boards, tasks...</span>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-5 py-6">
+            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+              <section className="grid gap-4 md:grid-cols-3">
+                {focusCards.map((card) => {
+                  const Icon = card.icon;
+
+                  return (
+                    <article
+                      key={card.title}
+                      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {card.title}
+                          </p>
+                          <p className="mt-2 text-3xl font-semibold tracking-normal">
+                            {card.value}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex h-11 w-11 items-center justify-center rounded-lg",
+                            card.tone
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {card.detail}
+                      </p>
+                    </article>
+                  );
+                })}
+              </section>
+
+              <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                <article className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold">Focus board</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        A light planning lane for the next useful moves.
+                      </p>
+                    </div>
+                    <Button className="h-8 rounded-lg px-3 text-xs">
+                      <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                      Ask AI
+                    </Button>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    {["To plan", "In motion", "Ready"].map((column, index) => (
+                      <div
+                        key={column}
+                        className="min-h-[178px] rounded-lg border border-border bg-secondary/45 p-3"
+                      >
+                        <div className="mb-3 flex items-center justify-between">
+                          <p className="text-xs font-semibold uppercase text-muted-foreground">
+                            {column}
+                          </p>
+                          <span className="rounded-full bg-card px-2 py-0.5 text-[0.68rem] text-muted-foreground">
+                            {index + 2}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="rounded-lg bg-card p-3 text-sm shadow-sm">
+                            {taskList[index]}
+                          </div>
+                          <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+                            Drop idea here
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">AI note pulse</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Fresh summaries from your workspace.
+                      </p>
+                    </div>
+                    <MessageCircle className="h-5 w-5 text-indigo-500" />
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {[
+                      "Turn whiteboard clusters into a launch checklist.",
+                      "Create a weekly review template from recent notes.",
+                      "Schedule quiet blocks around the calendar load.",
+                    ].map((item) => (
+                      <div
+                        key={item}
+                        className="rounded-lg bg-secondary/45 px-3 py-3 text-sm leading-5"
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#09090b',
-    color: '#fafafa',
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif",
-    padding: '2rem',
-    boxSizing: 'border-box',
-  },
-  hero: {
-    textAlign: 'center',
-    maxWidth: '800px',
-    marginBottom: '4rem',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  badge: {
-    display: 'inline-block',
-    padding: '0.5rem 1rem',
-    borderRadius: '9999px',
-    backgroundColor: '#27272a',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: '#38bdf8',
-    marginBottom: '1.5rem',
-    border: '1px solid #3f3f46',
-  },
-  title: {
-    fontSize: '3rem',
-    fontWeight: 800,
-    letterSpacing: '-0.025em',
-    lineHeight: 1.2,
-    margin: '0 0 1rem 0',
-  },
-  gradient: {
-    background: 'linear-gradient(to right, #38bdf8, #818cf8, #c084fc)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  },
-  subtitle: {
-    fontSize: '1.125rem',
-    color: '#a1a1aa',
-    lineHeight: 1.6,
-    margin: '0 0 2rem 0',
-    maxWidth: '600px',
-  },
-  ctaGroup: {
-    display: 'flex',
-    gap: '1rem',
-  },
-  primaryCta: {
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
-    backgroundColor: '#38bdf8',
-    color: '#09090b',
-    fontWeight: 600,
-    textDecoration: 'none',
-    transition: 'opacity 0.2s',
-  },
-  secondaryCta: {
-    padding: '0.75rem 1.5rem',
-    borderRadius: '8px',
-    backgroundColor: 'transparent',
-    color: '#fafafa',
-    fontWeight: 600,
-    textDecoration: 'none',
-    border: '1px solid #3f3f46',
-    transition: 'background-color 0.2s',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '2rem',
-    width: '100%',
-    maxWidth: '1000px',
-    marginBottom: '4rem',
-  },
-  card: {
-    backgroundColor: '#18181b',
-    border: '1px solid #27272a',
-    borderRadius: '12px',
-    padding: '1.5rem',
-    transition: 'transform 0.2s, border-color 0.2s',
-  },
-  icon: {
-    fontSize: '2rem',
-    marginBottom: '1rem',
-  },
-  cardTitle: {
-    fontSize: '1.25rem',
-    fontWeight: 600,
-    margin: '0 0 0.5rem 0',
-  },
-  cardText: {
-    fontSize: '0.875rem',
-    color: '#a1a1aa',
-    lineHeight: 1.5,
-    margin: 0,
-  },
-  footer: {
-    fontSize: '0.875rem',
-    color: '#71717a',
-    marginTop: 'auto',
-  },
-};

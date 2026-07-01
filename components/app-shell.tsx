@@ -77,7 +77,7 @@ const navigationGroups = [
       },
       {
         label: "Task / Kanban",
-        href: "#",
+        href: "/kanban",
         icon: FileText,
         color: "text-teal-500",
       },
